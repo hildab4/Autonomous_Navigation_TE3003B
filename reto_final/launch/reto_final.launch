@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<launch>
+    <!-- Custom arguments for each world-->
+    <arg name = "pos_x1" default = "-1.0"/>
+    <arg name = "pos_y1" default = "-1.3"/>
+    <arg name = "pos_theta1" default = "0"/>
+    <arg name="world_name1" default="$(find puzzlebot_gazebo)/worlds/obstacle_avoidance_1.world"/>
+
+    <!-- Launch simulation with defined arguments-->
+    <include file = "$(find puzzlebot_gazebo)/launch/puzzlebot_gazebo.launch">
+        <arg name="pos_x" value="$(arg pos_x1)"/>
+        <arg name="pos_y" value="$(arg pos_y1)"/>
+        <arg name="pos_theta" value="$(arg pos_theta1)"/>
+        <arg name="world_name" value="$(arg world_name1)"/>
+    </include>
+
+    <!-- Launch movement nodes -->
+    <node name="localisation" pkg="reto_final" type="localisation.py" output="screen"/>
+    <node name="bug0" pkg = "reto_final" type = "bug0.py" output = "screen"/>
+</launch>
