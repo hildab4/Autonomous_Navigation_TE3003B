@@ -1,10 +1,10 @@
 <?xml version="1.0" ?>
 <launch>
     <!-- Custom arguments for each world-->
-    <arg name = "pos_x1" default = "-1.0"/>
-    <arg name = "pos_y1" default = "-1.3"/>
-    <arg name = "pos_theta1" default = "0"/>
-    <arg name="world_name1" default="$(find puzzlebot_gazebo)/worlds/obstacle_avoidance_1.world"/>
+    <arg name = "pos_x1" default = "2.9"/>
+    <arg name = "pos_y1" default = "0.3"/>
+    <arg name = "pos_theta1" default = "1.5708"/>
+    <arg name="world_name1" default="$(find puzzlebot_gazebo)/worlds/ADJIC_map.world"/>
 
     <!-- Launch simulation with defined arguments-->
     <include file = "$(find puzzlebot_gazebo)/launch/puzzlebot_gazebo.launch">
@@ -14,7 +14,16 @@
         <arg name="world_name" value="$(arg world_name1)"/>
     </include>
 
-    <!-- Launch movement nodes -->
     <node name="localisation" pkg="reto_final" type="localisation.py" output="screen"/>
     <node name="bug2" pkg = "reto_final" type = "bug2.py" output = "screen"/>
+
+    <include file = "$(find puzzlebot_control)/launch/puzzlebot_control.launch"/> 
+
+    <include file="$(find reto_final)/launch/aruco_detect.launch"/>
+
+    <!-- Launch movement nodes -->
+    <!--<node name = "image_republish" pkg = "image_transport" type = "republish" args = "raw in:=/puzzlebot_1/camera/image_raw compressed out:=puzzlebot_1/camera/image"/>
+	<node name="camera_info_publisher" pkg="reto_final" type="yaml_to_camera_info_publisher.py" output="screen"/>
+    <node name="DetectR" pkg="reto_final" type="aruco_detect.py" output="screen"/>
+    <node name = "rqt_image_view" pkg = "rqt_image_view" type = "rqt_image_view"/>-->
 </launch>
