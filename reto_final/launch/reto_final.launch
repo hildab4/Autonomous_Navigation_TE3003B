@@ -16,5 +16,5 @@
 
     <!-- Launch movement nodes -->
     <node name="localisation" pkg="reto_final" type="localisation.py" output="screen"/>
-    <node name="bug0" pkg = "reto_final" type = "bug0.py" output = "screen"/>
+    <node name="bug2" pkg = "reto_final" type = "bug2.py" output = "screen"/>
 </launch>
