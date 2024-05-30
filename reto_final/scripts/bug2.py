@@ -41,12 +41,12 @@ class Bug2():
         self.hit_point = None
         self.leave_point = None
         self.tolerance = 0.1
-        self.min_progress = 0.3 # Change this for Bug2
+        self.min_progress = 0.3
 
         self.v = 0.0
         self.w = 0.0
 
-        self.fw = 0.33
+        self.fw = 0.25
 
         self.current_state = 'GTG'
         self.set_point_cb()
@@ -118,8 +118,8 @@ class Bug2():
         self.closest_angle = np.arctan2(np.sin(closest_angle), np.cos(closest_angle))
 
     def gtg_control(self):
-        kv_m = 0.25
-        kw_m = 1.0
+        kv_m = 0.15
+        kw_m = 1.5
 
         av = 2.0
         aw = 2.0
@@ -147,9 +147,10 @@ class Bug2():
         else:
             theta_fw = np.pi / 2 + self.theta_ao
         self.theta_fw = np.arctan2(np.sin(theta_fw), np.cos(theta_fw))
-
+        
+        
         kw = 3.0
-        self.v = 0.15
+        self.v = 0.08
         self.w = kw * self.theta_fw
 
     def laser_cb(self, msg):
@@ -158,8 +159,8 @@ class Bug2():
 
     def set_point_cb(self):
         # Set the goal coordinates
-        self.xg = 2.3
-        self.yg = 2.5
+        self.xg = 1.0
+        self.yg = 2.7
         self.goal_r = True
 
     def odom_cb(self, msg):

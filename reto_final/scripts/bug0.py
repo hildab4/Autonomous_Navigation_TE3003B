@@ -44,12 +44,12 @@ class Bug0():
         self.hp = 0.0
         self.lp = 0.0
         self.tolerance = 0.1
-        self.min_progress = 0.3 # CAMBIAR PARA COMPLETAR BUG0
+        self.min_progress = 0.05 # CAMBIAR PARA COMPLETAR BUG0
 
         self.v = 0.0
         self.w = 0.0
 
-        self.fw = 0.33
+        self.fw = 0.25
 
         self.current_state = 'GTG'
         self.set_point_cb()
@@ -58,7 +58,7 @@ class Bug0():
         while not rospy.is_shutdown():
              if self.lidar_r and self.goal_r:
                   self.get_closest_range()
-                  print(self.closest_range)
+                  #print(self.closest_range)
                   if self.at_goal():
                        print("Done")
                        self.v = 0.0
@@ -76,7 +76,7 @@ class Bug0():
                        else:
                             self.gtg_control()
                   elif self.current_state == "CW":
-                       #print(self.current_state)
+                       print(self.current_state)
                        self.fw_control(True)
                        print("New distance:", self.made_progress())
                        print("Hit point:", self.hit - self.min_progress)
@@ -87,10 +87,10 @@ class Bug0():
                        else:
                             self.fw_control(True)
                   elif self.current_state == "CCW":
-                       #print(self.current_state)
+                       print(self.current_state)
                        self.fw_control(False)
-                       #print("New distance:", self.made_progress())
-                       #print("Hit point:", self.hit)
+                       print("New distance:", self.made_progress())
+                       print("Hit point:", self.hit)
                        if self.made_progress() < abs(self.hit - self.min_progress) and abs(self.theta_ao - self.e_theta) < np.pi/2:
                             self.current_state = "GTG"
                        elif self.at_goal():
@@ -135,8 +135,8 @@ class Bug0():
         self.closest_angle = np.arctan2(np.sin(closest_angle), np.cos(closest_angle))
 
     def gtg_control(self):
-        kv_m = 0.25
-        kw_m = 1.0
+        kv_m = 0.1
+        kw_m = 2.0
 
         av = 2.0
         aw = 2.0
@@ -170,8 +170,8 @@ class Bug0():
             theta_fw = np.pi / 2 + self.theta_ao
         self.theta_fw = np.arctan2(np.sin(theta_fw), np.cos(theta_fw))
 
-        kw = 3.0
-        self.v = 0.15
+        kw = 2.4
+        self.v = 0.08
         self.w = kw * self.theta_fw
 
     def laser_cb(self, msg):
@@ -184,8 +184,8 @@ class Bug0():
         self.yg = 1.2'''
 
         #Map 1
-        self.xg = 2.3
-        self.yg = 2.5
+        self.xg = 1.4
+        self.yg = 2.3
 
         '''#Map 2
         self.xg = -1.15
