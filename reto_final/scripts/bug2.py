@@ -159,8 +159,8 @@ class Bug2():
 
     def set_point_cb(self):
         # Set the goal coordinates
-        self.xg = 1.0
-        self.yg = 2.7
+        self.xg = 1.4
+        self.yg = 2.3
         self.goal_r = True
 
     def odom_cb(self, msg):
