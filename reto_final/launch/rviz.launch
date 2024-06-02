@@ -1,0 +1,31 @@
+<launch>
+
+    <arg name="robot_description_file" default="puzzlebot_jetson_lidar_ed_v1.xacro"/>
+
+    <!-- Publicar descripción del robot desde la laptop -->
+    <param name="robot_description" command="$(find xacro)/xacro '$(find reto_final)/urdf/$(arg robot_description_file)'"/>
+
+    <!-- Robot State Publisher -->
+    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen">
+        <param name="robot_description" command="$(find xacro)/xacro '$(find reto_final)/urdf/$(arg robot_description_file)'"/>
+    </node>
+
+    <node name="joint_state_publisher"  pkg="joint_state_publisher" type="joint_state_publisher"/>
+
+    <!-- Launch robot control complete TF tree -->
+    <include file="$(find reto_final)/launch/puzzlebot_control.launch"/>
+
+    <!-- Run the map server -->
+    <arg name="map_file" default="$(find reto_final)/maps/map.yaml"/>
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output = "screen"/>
+
+    <!-- Lanza RViz con una configuración personalizada -->
+    <arg name="rviz_config" default="rviz/map_config_2d.rviz"/>
+
+    <!-- Nodo de RViz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find reto_final)/$(arg rviz_config)" respawn="false" output="screen">
+    </node>
+
+    <param name="/use_sim_time" value="false"/>
+
+</launch>

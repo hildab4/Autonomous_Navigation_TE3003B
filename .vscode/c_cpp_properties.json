@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/opt/ros/noetic/include/**",
+        "/home/ramon/catkin_ws/src/AutonomousNavigationRRManchesterRobotics/challenge_final/include/**",
+        "/home/ramon/catkin_ws/src/Autonomous_Navigation_TE3003B/reto_final/include/**",
+        "/home/ramon/catkin_ws/src/PuzzlebotRobotRangers/robotrangers_autonomousnavigation_puzzlebot/include/**",
+        "/home/ramon/catkin_ws/src/autonomous_puzzlebot_juanma/robotrangers_autonomousnavigation_puzzlebot_final/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

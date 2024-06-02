@@ -1,0 +1,6 @@
+<!-- Control launch file -->
+<launch>
+
+  <!-- Launching gazebo movement -->
+  <include file="$(find reto_final)/launch/puzzlebot_control.launch"/> 
+</launch>

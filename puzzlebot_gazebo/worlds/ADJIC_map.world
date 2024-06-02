@@ -131,7 +131,7 @@
         <collision name='collision'>
           <geometry>
             <mesh>
-              <uri>model://challenge6/meshes/Mapa_pista_ADJIC v4.dae</uri>
+              <uri>model://challenge6/meshes/Mapa_pista_ADJIC v23.dae</uri>
             </mesh>
           </geometry>
           <surface>
@@ -154,7 +154,7 @@
         <visual name='visual'>
           <geometry>
             <mesh>
-              <uri>model://challenge6/meshes/Mapa_pista_ADJIC v4.dae</uri>
+              <uri>model://challenge6/meshes/Mapa_pista_ADJIC v23.dae</uri>
             </mesh>
           </geometry>
           <material>
@@ -191,7 +191,7 @@
         <pose>0 2.0 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='walls'>
-          <pose>0 2.0 0 0 -0 0</pose>
+          <pose>0 0 0 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>

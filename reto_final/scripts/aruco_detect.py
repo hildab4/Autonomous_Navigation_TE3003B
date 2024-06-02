@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  
 
 from fiducial_msgs.msg import FiducialTransformArray
-from std_msgs.msg import Float32MultiArray
-from geometry_msgs.msg import Pose
+import tf
 from tf.transformations import euler_from_quaternion
+from std_msgs.msg import Float32MultiArray
 import rospy
-import tf2_ros
-import tf_conversions
+import numpy as np
 
 
 class ArucoDetect():
@@ -14,54 +13,72 @@ class ArucoDetect():
         rospy.init_node("DetectR")
 
         rospy.Subscriber("fiducial_transforms", FiducialTransformArray, self.fiducial_cb)
-        
-        # Añadimos el publicador
-        self.position_pub = rospy.Publisher("aruco_position", Pose, queue_size=10)
+
+        self.aruco_pub = rospy.Publisher("aruco_topic", Float32MultiArray, queue_size=1)
 
         self.aruco = FiducialTransformArray()
-        self.needed_id = 721
+        #self.needed_id = 721
 
-        self.pos_x = 0.0
-        self.pos_y = 0.0
-        self.pos_z = 0.0
+        
+        self.aruco_info = [0.0, 0.0, 0.0] #ID DISTANCIA THETA
         self.quat = [0.0, 0.0, 0.0, 0.0]
+        self.T = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+        self.rate = rospy.Rate(20)
 
-        rospy.spin()
+        while not rospy.is_shutdown():
+            if len(self.aruco.transforms) >= 1:
+                #found_id = self.aruco.transforms[0].fiducial_id
+    
+                #if found_id == self.needed_id:
+                '''
+                self.pos = [round(self.aruco.transforms[0].transform.translation.x, 5),
+                            round(self.aruco.transforms[0].transform.translation.y, 5),
+                            round(self.aruco.transforms[0].transform.translation.z, 5),
+                            1]'''
+
+                self.quat = [round(self.aruco.transforms[0].transform.rotation.x, 5),
+                        round(self.aruco.transforms[0].transform.rotation.y, 5),
+                        round(self.aruco.transforms[0].transform.rotation.z, 5),
+                        round(self.aruco.transforms[0].transform.rotation.w, 5)]
+
+                euler = euler_from_quaternion(self.quat)
+                yaw = round(euler[2], 5)
+
+                self.pos = [round(self.aruco.transforms[0].transform.translation.x, 5),
+                            round(self.aruco.transforms[0].transform.translation.y, 5),
+                            round(self.aruco.transforms[0].transform.translation.z, 5),
+                            1]
+
+                self.transform_frame()
+                
+                dist = np.sqrt(self.robotParuco[0] ** 2 + self.robotParuco[1] ** 2)
+                theta = np.arctan2(self.robotParuco[1], self.robotParuco[0])
+
+                print("\n=========== Position of Aruco with respect to robot frame ===========")
+                print("\nPosition in x: " + str(self.robotParuco[0]))
+                print("\nPosition in y: " + str(self.robotParuco[1]))
+                print("\nPosition in z: " + str(self.robotParuco[2]))
+                print("\nOrientation in yaw rad: " + str(theta))
+                print("\nDistancia al aruco: " + str(dist))
+
+                self.aruco_info[0] = self.aruco.transforms[0].fiducial_id
+                self.aruco_info[1] = dist
+                self.aruco_info[2] = theta
+
+                self.aruco_pub.publish(self.aruco_info)
+
+                #print("\nNeeded ID not found")
+            self.rate.sleep()   
 
     def fiducial_cb(self, msg):
         self.aruco = msg
-        if len(self.aruco.transforms) >= 1:
-            found_id = self.aruco.transforms[0].fiducial_id
 
-            #if found_id == self.needed_id:
-            self.pos_x = round(self.aruco.transforms[0].transform.translation.x, 5)
-            self.pos_y = round(self.aruco.transforms[0].transform.translation.y, 5)
-            self.pos_z = round(self.aruco.transforms[0].transform.translation.z, 5)
-
-            quat = [round(self.aruco.transforms[0].transform.rotation.x, 5),
-                    round(self.aruco.transforms[0].transform.rotation.y, 5),
-                    round(self.aruco.transforms[0].transform.rotation.z, 5),
-                    round(self.aruco.transforms[0].transform.rotation.w, 5)]
-
-            euler = euler_from_quaternion(quat)
-            yaw = round(euler[2], 5)
-
-            print("\nAruco ID:", str(found_id))
-            print("\nPosition in x:", str(self.pos_x))
-            print("\nPosition in y:", str(self.pos_y))
-            print("\nPosition in z:", str(self.pos_z))
-            print("\nOrientation in yaw:", str(yaw))
-
-            # Publicar la posición como un Vector3
-            pos_vector = Pose()
-            pos_vector.position.x = self.pos_x
-            pos_vector.position.y = self.pos_y
-            pos_vector.position.z = self.pos_z
-            pos_vector.orientation.z = yaw
-            self.position_pub.publish(pos_vector)
-            #else:
-            #print("\nNeeded ID not found")
-
+    def transform_frame(self):  
+        self.T = [[0, 0, 1, 0.12],
+                  [1, 0, 0, 0],
+                  [0, 1, 0, 0.09],
+                  [0, 0, 0, 1]]
+        self.robotParuco = np.dot(self.T, self.pos)
 
 if __name__ == "__main__":
     rospy.init_node("DetectR")
