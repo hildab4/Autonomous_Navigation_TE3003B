@@ -49,7 +49,7 @@ def yaml_to_CameraInfo(yaml_fname):
 if __name__ == "__main__":
     # Get fname from command line (cmd line input required)
     import argparse
-    filename = "/home/hildab/catkin_ws/src/Autonomous_Navigation_TE3003B/reto_final/include/ost.yaml"
+    filename = "/home/ramon/catkin_ws/src/Autonomous_Navigation_TE3003B/reto_final/include/ost.yaml"
 
     # Parse yaml file
     camera_info_msg = yaml_to_CameraInfo(filename)

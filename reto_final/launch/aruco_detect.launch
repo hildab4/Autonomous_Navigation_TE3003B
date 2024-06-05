@@ -6,9 +6,9 @@
 
   <arg name="transport" default="compressed"/> 
 
-  <arg name="fiducial_len" default="0.14"/> 
+  <arg name="fiducial_len" default="0.096"/> 
 
-  <arg name="dictionary" default="0"/> 
+  <arg name="dictionary" default="16"/> 
 
   <arg name="do_pose_estimation" default="true"/> 
 

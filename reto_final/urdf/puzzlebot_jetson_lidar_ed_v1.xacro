@@ -12,6 +12,7 @@
 <!-- Dummy link to fix robot chassis -->
     <link name="base_footprint">
     </link>
+
   
     <link name="base_link">
         <visual>
@@ -298,10 +299,17 @@
 
 <!--JOINTS-->
 
+
     <joint name="chassis_joint" type="fixed">
         <parent link="base_footprint"/>
         <child link="base_link"/>
         <origin xyz="${chassis_pos_x} ${chassis_pos_y} ${chassis_pos_z}" rpy="${chassis_pos_r} ${chassis_pos_p} ${chassis_pos_w}"/>
+    </joint>
+
+    <joint name="world_to_base_footprint" type="fixed">
+        <parent link="world"/>
+        <child link="base_link"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
     </joint>
 
     <joint name="motor_left_joint" type="fixed">

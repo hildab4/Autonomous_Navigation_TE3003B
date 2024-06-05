@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import rospy 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PointStamped, TransformStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion 
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Float32MultiArray, Bool
 import numpy as np
+import tf2_ros
 
 class Bug0():
     def __init__(self):
@@ -13,12 +15,15 @@ class Bug0():
 
         rospy.Subscriber("puzzlebot_1/scan", LaserScan, self.laser_cb)
         rospy.Subscriber("puzzlebot_1/base_controller/odom", Odometry, self.odom_cb)
+        rospy.Subscriber("goalmarker", Float32MultiArray, self.goal_cb)
 
         self.pub_cmd_vel = rospy.Publisher("puzzlebot_1/base_controller/cmd_vel", Twist, queue_size = 1)
+        self.pub_goal_reached = rospy.Publisher("goal_reached", Bool, queue_size = 1)
 
-        rate = rospy.Rate(20)
-        dt = 1.0 / 10
+        dt = 0.05
+        rate = rospy.Rate(1/dt)
 
+        #############  INITIAL CONDITIONS #################
         self.xg = 0.0
         self.yg = 0.0
 
@@ -26,12 +31,13 @@ class Bug0():
         self.theta_ao = 0.0
         self.theta_fw = 0.0
         
+        ############# INITIAL ROBOT POSE ###################
         self.xr = 0.0
         self.yr = 0.0
         self.tr = 0.0
 
-        self.goal_r = False
-        self.lidar_r = False
+        self.goal_r = False  #Goal coords recieve flag
+        self.lidar_r = False #Lidar info recieve flag 
 
         vel_msg = Twist()
 
@@ -41,72 +47,89 @@ class Bug0():
         self.closest_angle = 0.0
         self.closest_range = np.inf
 
-        self.hp = 0.0
-        self.lp = 0.0
+        self.hp = 0.0    #Hitpoint
+        self.lp = 0.0    #Last point
         self.tolerance = 0.1
-        self.min_progress = 0.05 # CAMBIAR PARA COMPLETAR BUG0
+        self.min_progress = 0.5 # CAMBIAR PARA COMPLETAR BUG0
 
-        self.v = 0.0
-        self.w = 0.0
+        self.v = 0.0   #Linear vel
+        self.w = 0.0   #Angular vel
 
-        self.fw = 0.25
+        self.goal_flag = False  #Goal if flag is reached
+
+        self.fw = 0.25   #Following wall tolerance
 
         self.current_state = 'GTG'
-        self.set_point_cb()
         self.previous_distance_to_goal = np.inf
 
         while not rospy.is_shutdown():
-             if self.lidar_r and self.goal_r:
-                  self.get_closest_range()
-                  #print(self.closest_range)
-                  if self.at_goal():
-                       print("Done")
-                       self.v = 0.0
-                       self.w = 0.0
-                  elif self.current_state == "GTG":
-                       print(self.current_state)
-                       if self.closest_range <= self.fw:
-                            self.hit = self.made_progress()
-                            if abs(self.closest_angle - self.e_theta) <= np.pi/4:
-                                 self.current_state = "CW"
-                                 print(self.current_state)
-                            elif abs(self.closest_angle - self.e_theta) > np.pi/4:
-                                 self.current_state = "CCW"
-                                 print(self.current_state)
-                       else:
-                            self.gtg_control()
-                  elif self.current_state == "CW":
-                       print(self.current_state)
-                       self.fw_control(True)
-                       print("New distance:", self.made_progress())
-                       print("Hit point:", self.hit - self.min_progress)
-                       if self.made_progress() < abs(self.hit - self.min_progress) and abs(self.theta_ao - self.e_theta) < np.pi/2:
-                            self.current_state = "GTG"
-                       elif self.at_goal():
-                            self.current_state = "Stop"
-                       else:
-                            self.fw_control(True)
-                  elif self.current_state == "CCW":
-                       print(self.current_state)
-                       self.fw_control(False)
-                       print("New distance:", self.made_progress())
-                       print("Hit point:", self.hit)
-                       if self.made_progress() < abs(self.hit - self.min_progress) and abs(self.theta_ao - self.e_theta) < np.pi/2:
-                            self.current_state = "GTG"
-                       elif self.at_goal():
-                            self.current_state = "Stop"
-                       else:
-                            self.fw_control(False)
+            ############### STATE MACHINE ###################### 
+            if self.lidar_r and self.goal_r:
+                self.get_closest_range()
+                if self.at_goal():
+                    print("Done")
+                    self.v = 0.0
+                    self.w = 0.0
+                    self.goal_flag = True
+                    if self.goal_flag:
+                        self.pub_goal_reached.publish(self.goal_flag)
+                        self.goal_flag = False
+                        self.pub_goal_reached.publish(self.goal_flag)
 
-             vel_msg.linear.x = self.v
-             vel_msg.angular.z = self.w
-             self.pub_cmd_vel.publish(vel_msg)
-             rate.sleep()
+                elif self.current_state == "GTG":
+                    print(self.current_state)
+                    if self.closest_range <= self.fw:
+                        self.hit = self.made_progress()
+                        if abs(self.closest_angle - self.e_theta) > np.pi/4:
+                                self.current_state = "CW"
+                                print(self.current_state)
+                        elif abs(self.closest_angle - self.e_theta) <= np.pi/4:
+                                self.current_state = "CCW"
+                                print(self.current_state)
+                    else:
+                        self.gtg_control()
+
+                elif self.current_state == "CW":
+                    print(self.current_state)
+                    self.fw_control(True)
+                    #print("New distance:", self.made_progress())
+                    #print("Hit point:", self.hit - self.min_progress)
+                    if self.made_progress() < abs(self.hit - self.min_progress) and abs(self.theta_ao - self.e_theta) < np.pi/2:
+                        self.current_state = "GTG"
+                    elif self.at_goal():
+                        self.current_state = "Stop"
+                    else:
+                        self.fw_control(True)
+
+                elif self.current_state == "CCW":
+                    print(self.current_state)
+                    self.fw_control(False)
+                    #print("New distance:", self.made_progress())
+                    #print("Hit point:", self.hit)
+                    if self.made_progress() < abs(self.hit - self.min_progress) and abs(self.theta_ao - self.e_theta) < np.pi/2:
+                        self.current_state = "GTG"
+                    elif self.at_goal():
+                        self.current_state = "Stop"
+                    else:
+                        self.fw_control(False)
+
+            print("X robot: " + str(self.xr) + " X goal: " + str(self.xg))
+            print("Y robot: " + str(self.yr) + " Y goal: " + str(self.yg))
+            print("Current state: " + str(self.current_state))
+            vel_msg.linear.x = self.v
+            vel_msg.angular.z = self.w
+            self.pub_cmd_vel.publish(vel_msg)
+            rate.sleep()
 
 
     def at_goal(self):
         #print(abs(self.xr - self.xg), abs(self.yr - self.yg))
         return (abs(self.xr - self.xg) < self.tolerance) and (abs(self.yr - self.yg) < self.tolerance)
+    
+    def goal_cb(self, msg):
+        self.xg = msg.data[0]
+        self.yg = msg.data[1]
+        self.goal_r = True
     
     def made_progress(self):
         return np.sqrt((self.xg - self.xr) ** 2 + (self.yg - self.yr) ** 2)
@@ -131,38 +154,39 @@ class Bug0():
         min_idx = np.argmin(self.lidar_msg.ranges)
         self.closest_range = self.lidar_msg.ranges[min_idx]
         closest_angle = new_angle_min + min_idx * self.lidar_msg.angle_increment
+        closest_angle += np.pi
         # limit the angle to [-pi, pi]
         self.closest_angle = np.arctan2(np.sin(closest_angle), np.cos(closest_angle))
 
     def gtg_control(self):
-        kv_m = 0.1
-        kw_m = 2.0
+        kv_m = 0.03
+        kw_m = 0.21
 
         av = 2.0
         aw = 2.0
 
         e_d = np.sqrt((self.xg - self.xr) ** 2 + (self.yg - self.yr) ** 2)
         tg = np.arctan2(self.yg - self.yr, self.xg - self.xr)
-        print("TG: ", tg)
+        #print("TG: ", tg)
         e_theta = tg - self.tr
-        print("theta r: ", self.tr)
+        #print("theta r: ", self.tr)
         e_theta = np.arctan2(np.sin(e_theta), np.cos(e_theta))
-        print("e theta: ", e_theta)
+        #print("e theta: ", e_theta)
 
         kw = kw_m * (1 - np.exp(-aw * e_theta ** 2)) / abs(e_theta)        
         self.w = kw * e_theta
-        print("W: ", self.w)
+        #print("W: ", self.w)
 
         if abs(e_theta) > np.pi/8:
              self.v = 0.0
         else:
             kv = kv_m * (1 - np.exp(-av * e_d ** 2))/abs(e_d)
             self.v = kv * e_d
-        print("V: ", self.v)
+        #print("V: ", self.v)
 
     def fw_control(self, clockwise):
         self.closest_angle = np.arctan2(np.sin(self.closest_angle), np.cos(self.closest_angle))
-        theta_ao = self.closest_angle - np.pi
+        theta_ao = self.closest_angle
         self.theta_ao = np.arctan2(np.sin(theta_ao), np.cos(theta_ao))
         if clockwise:
             theta_fw = -np.pi / 2 + self.theta_ao
@@ -170,39 +194,13 @@ class Bug0():
             theta_fw = np.pi / 2 + self.theta_ao
         self.theta_fw = np.arctan2(np.sin(theta_fw), np.cos(theta_fw))
 
-        kw = 2.4
-        self.v = 0.08
+        kw = 0.7
+        self.v = 0.03
         self.w = kw * self.theta_fw
 
-    def laser_cb(self, msg):
-        self.lidar_msg = msg
+    def laser_cb(self, scan):
+        self.lidar_msg = scan
         self.lidar_r = True
-
-    def set_point_cb(self):
-        '''#Map 1
-        self.xg = 1.5
-        self.yg = 1.2'''
-
-        #Map 1
-        self.xg = 1.4
-        self.yg = 2.3
-
-        '''#Map 2
-        self.xg = -1.15
-        self.yg = 1.5'''
-
-        #Map 2
-        '''self.xg = 0.7
-        self.yg = 2.5'''
-
-        #Map 3
-        '''self.xg = 4.5
-        self.yg = -0.5'''
-
-        '''Map 4
-        self.xg = 0.0
-        self.yg = -2.5'''
-        self.goal_r = True
 
     def odom_cb(self, msg):
         orientation = [

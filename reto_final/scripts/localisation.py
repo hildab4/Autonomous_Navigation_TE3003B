@@ -1,173 +1,323 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy  
-from std_msgs.msg import Float32, Int32
-from std_msgs.msg import Float64
+from std_msgs.msg import Float32, Float32MultiArray, Bool
 from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler
-from std_msgs.msg import Float32MultiArray 
+from geometry_msgs.msg import Pose, TransformStamped
 import numpy as np 
+from numpy.linalg import inv
+import tf2_ros
 
 class Localisation():  
-    def _init_(self):
-        print("entra al init")
+    def __init__(self):
         rospy.init_node('localisation') 
-        
-        rospy.Subscriber("wl", Float32, self.wl_cb) 
-        rospy.Subscriber("wr", Float32, self.wr_cb) 
-        rospy.Subscriber("aruco_topic", Float32MultiArray, self.aruco_cb)
-        self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=1) 
 
-        self.r = 0.05  
-        self.L = 0.19  
-        self.dt = 0.1
+        self.send_static_transform()
+        rospy.loginfo("Static transform sent from 'world' to 'odom'.")
         
+        ################# SUBSCRIBERS ####################
+        rospy.Subscriber("puzzlebot_1/wl", Float32, self.wl_cb) 
+        rospy.Subscriber("puzzlebot_1/wr", Float32, self.wr_cb) 
+        rospy.Subscriber("aruco_topic", Float32MultiArray, self.aruco_cb)
+        rospy.Subscriber("goal_reached", Bool, self.goal_cb)
+
+        ################# PUBLISHERS ######################
+        self.odom_pub = rospy.Publisher('puzzlebot_1/base_controller/odom', Odometry, queue_size=1) 
+        self.goal_pub = rospy.Publisher('goalmarker', Float32MultiArray, queue_size=1)
+
+        ################# ROBOT CONSTANTS #################
+        self.r = 0.05  
+        self.L = 0.19
+        self.dt = 0.05
+
+        ############### INITIAL POSITION #################
+        self.x = 2.3
+        self.y = 1.04
+        self.theta = np.pi
+
+        ################ GOAL COORDINATES ################
+        self.kr = 0.0
+        self.kl = 0.0
+        
+        ################ ARUCO IDENTIFIERS ###############
         self.x_aruco = 0
         self.y_aruco  = 0
+        self.id_aruco = 0
+        self.get_aruco = False  #Initially no aruco detected
 
+
+        ######### LINEAR AND ANGULAR VELOCITY VARIABLES #########
         self.w = 0.0  
         self.v = 0.0  
-        self.x = 0.4  
-        self.y = 0.4  
-        self.theta = 0.0  
         self.wr = 0.0  
         self.wl = 0.0
-        self.id_aruco = 0
-        
-        self.Z = np.array([[0,0],[0,0]])
-        
-        self.I = np.eye(3)
-        #self.I = np.array([[1,0,0],[0,1,0],[0,0,1]])  
-        
-        self.z_covariance = np.zeros((3, 3))
-        #self.z_covariance = np.array([[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
-        self.miu = np.array([0.4, 0.4, 0.0])
-        self.wr_k = 0.15
-        self.wl_k = 0.025
-        self.w_sigma_const = 0.5 * self.dt * self.r
-        self.get_aruco = False
-        
+        self.flag = False
+
+        ############### EKF VARIABLES ##################
+
+        ############## INITIAL CONDITIONS #############
+        self.miu = np.array([self.x, self.y, self.theta]) #robot initial position [0] = X [1] = Y [2] = yaw Real position of the robot
+        self.miu_hat = np.array([0, 0, 0]) #Estimated position
+
+        self.sigma = np.zeros((3,3)) #initial covariance matrix Real covariance
+        self.sigma_hat = np.zeros((3,3)) #Estimated covariance
+
+        self.Z = np.zeros((2,2)) #Real position of the robot in respect to the aruco
+        self.z_hat = np.zeros((2,2)) #Estimated position of the robot in respect to the aruco
+
+
+        self.H = np.zeros((3,3)) #Linearized model for uncertainty propagation   
+        self.G = np.zeros((2,3))
+        self.gradient_W = np.zeros((3,2))
+
+        self.Q = np.zeros((3,3))
+        self.R = np.array([[2.8774e-07, 0.0], [0.0, 7.3658e-09]]) #2x2
+        #self.gradient_W = np.zeros((3, 2))
+        self.K = np.array((3, 2))
+        self.covariance = np.zeros((2,3))
+
+        ################# GAINS #################
+        self.kl = 30.0
+        self.kr = 20.0
+
+
+        ################ GOALS ###################
+        self.goals = [
+            [0.5, 1.55],  # GOAL 1
+            [1.38, 1.03], # GOAL 2
+            [2.05, 0.35], # GOAL 3
+            [2.97, 0.4],  # GOAL 4
+            [0.5, 1.55]   # GOAL 5
+        ]
+
+        self.current_goal_index = 0
+
         rate = rospy.Rate(int(1.0/self.dt))
 
         while not rospy.is_shutdown():
-            
-            [self.v, self.w] = self.get_robot_vel(self.wr, self.wl)
-            self.prediccion()
-            
-            if self.get_aruco == True:
-                self.correction_step()
-                self.get_aruco = False
 
-            self.update_robot_pose(self.v, self.w) 
+            print("========================================")
+            print("X del robot : " + str(self.x))
+            print("Y del robot : " + str(self.y))
+            print("Theta del robot : " + str(self.theta))
+            print()
+            msg = Float32MultiArray()
+            msg.data = [0.5, 1.55]
+            self.goal_pub.publish(msg) #Publish first goal
+        
+            #Get linear and angular speeds
+            self.v = ((self.wl + self.wr) / 2) * self.r 
+            self.w = ((self.wr - self.wl) / self.L) * self.r
+
+            #Calculate the covariance matrix
+            self.covariance = np.array([[self.kl * np.abs(self.wr), 0], 
+                                       [0, self.kr * np.abs(self.wl)]])
+
+            #Calculate the jacobian matrix
+            self.gradient_W = 0.5 * self.r * self.dt * np.array([[np.cos(self.theta), np.cos(self.theta)],
+                                                                  [np.sin(self.theta), np.sin(self.theta)],
+                                                                  [2.0 / self.L, -2.0 / self.L]])
             
-            odom_msg = self.get_odom_stamped(self.x, self.y, self.theta, self.z_covariance, self.v, self.w) 
+            #Calculate the noise covariance
+            self.Q = self.gradient_W.dot(self.covariance).dot(self.gradient_W.T)
+
+            #Call prediction step
+            self.prediction()
+
+            #Verify aruco detection
+            if self.get_aruco == True:
+                #If true call correction step
+                self.correction()
+                self.get_aruco = False
+            else:
+                #Propagate backwards miu and covariance for the odometry
+                self.propagate()
+                
+            #Update odometry 
+            odom_msg = self.get_odom_stamped()
+
+            #Publish odometry
             self.odom_pub.publish(odom_msg) 
+
+            
+            #Send transform from odom frame to base_link frame
+            self.send_transform(odom_msg)
+
+            #If bug0 returns that it is at the goal, it publishes a flag and we read it here to send the next goal
+            if self.flag == True:
+                self.current_goal_index += 1
+                if self.current_goal_index >= len(self.goals):
+                    rospy.loginfo("!!!!!!!!All goals reached!!!!!!!!!!!")
+
+                rospy.loginfo("Target #" + str(self.current_goal_index) + "at coord: " + str(self.goals[self.current_goal_index]))
+                rospy.loginfo("Wait 5 seconds till next point is published")
+
+                start_time = rospy.get_time()
+                end_time = start_time + 5.0
+                while rospy.get_time() < end_time:
+                    elapsed_time = rospy.get_time() - start_time
+                    percentage = (elapsed_time / 5.0) * 100
+                    rospy.loginfo("Percentage: {:.2f}%".format(percentage))
+                    rospy.sleep(0.1)
+                self.goal_pub.publish(self.goals[self.current_goal_index])
+                rospy.loginfo("Sending new objective...")
 
             rate.sleep() 
 
-    def wl_cb(self, msg): 
-        self.wl = msg.data
-
-    def wr_cb(self, msg): 
-        self.wr = msg.data       
-
-    def get_robot_vel(self, wr, wl): 
-        v = ((wl + wr) / 2) * self.r 
-        w = ((wr - wl) / self.L) * self.r
-        return [v, w] 
     
-    def aruco_cb(self, msg):
-        id_aruco = msg.data[0]
-        self.d_aruco = msg.data[1]
-        self.theta_aruco = msg.data[2]
-        
-        self.id_arucos(id_aruco)
-        self.get_aruco = True
+    ######################### EXTENDED KALMAN FILTER ########################
 
-    def id_arucos(self, id):
-        x_y = {702: [0, 0.80], 701: [0, 1.60], 703: [1.73, 0.80],
-               704: [2.63, 0.39], 705: [2.85, 0], 706: [2.865,2.0],
-               707: [1.735, 1.22]}
+    def prediction(self):
+        ############## CALCULATE THE ESTIMATED POSITION ############### 
+        self.miu_hat = np.array([
+            [self.x + self.dt * self.v * np.cos(self.theta)], #X    3x3
+            [self.y + self.dt * self.v * np.sin(self.theta)], #Y
+            [self.theta + self.dt * self.w]])        
         
-        self.x_aruco = x_y[id][0]
-        self.y_aruco = x_y[id][1]
+        ############# CALCULTATE THE LINEARIZED MODEL ################
+        
+        self.H = np.array([[1, 0, -self.dt * self.v * np.sin(self.theta)],  #3x3
+                           [0, 1, self.dt * self.v * np.cos(self.theta)],
+                           [0, 0, 1]])
 
-    def get_odom_stamped(self, x, y, yaw, sigma, mu_v, mu_w): 
+
+        ################## CALCULATE COVARIANCE #####################
+        self.sigma_hat = self.H.dot(self.sigma).dot(self.H.T) + self.Q 
+
+
+    def correction(self):
+        dx = self.x_aruco - self.x
+        dy = self.y_aruco - self.x
+        p = dx **2 + dy **2 #Distance from robot to the aruco
+
+        self.z_hat = np.array([[np.sqrt(p)], [np.arctan2(dy, dx) - self.theta_pred]]) #Observation model of the pose of the robot in respect to the aruco
+
+        self.G = np.array([[-dx/np.sqrt(p), -dy/np.sqrt(p), 0], #Linearize observation model
+                      [dy/p, -dx/p, -1]])
+        
+        self.Z = self.G.dot(self.sigma_hat).dot(self.G.T) + self.R  #Compute the measurement uncertainty propagation,
+                                                                    #if R is big means our estimation has a lot of noise
+
+        self.K = self.sigma_hat.dot(self.G.T).dot(inv(self.Z)) #Kalman gain determines if we choose the estimated z or the z measured
+
+        self.miu = self.miu_hat + self.K.dot((self.coords_aruco - self.z_hat)) #K determines if we trust the estimated position or the measured pose
+        
+        self.sigma = (np.eye(3) - (self.K.dot(self.G))) * self.sigma_hat #Calculate covariance
+
+
+    def propagate(self):
+        self.miu = self.miu_hat
+        self.x = self.miu[0].item()
+        self.y = self.miu[1].item()
+        self.theta = self.miu[2].item()
+        self.theta_pred = self.miu_hat[2].item()
+        self.sigma = self.sigma_hat
+
+
+    ####################### ODOMETRY AND TRANSFORM ###############################
+    def get_odom_stamped(self): 
+
         odom_stamped = Odometry() 
         odom_stamped.header.frame_id = "odom" 
         odom_stamped.child_frame_id = "base_link"
         odom_stamped.header.stamp = rospy.Time.now() 
-        odom_stamped.pose.pose.position.x = x
-        odom_stamped.pose.pose.position.y = y
+        odom_stamped.pose.pose.position.x = self.x
+        odom_stamped.pose.pose.position.y = self.y
 
-        quat = quaternion_from_euler(0, 0, yaw) 
+        quat = quaternion_from_euler(0, 0, self.theta) 
         odom_stamped.pose.pose.orientation.x = quat[0]
         odom_stamped.pose.pose.orientation.y = quat[1]
         odom_stamped.pose.pose.orientation.z = quat[2]
         odom_stamped.pose.pose.orientation.w = quat[3]
 
-        odom_array = np.array([[sigma[0][0], sigma[0][1], 0, 0, 0, sigma[0][2]],
-                               [sigma[1][0], sigma[1][1], 0, 0, 0, sigma[1][2]],
-                               [0, 0, 0, 0, 0, 0],
-                               [0, 0, 0, 0, 0, 0],
-                               [0, 0, 0, 0, 0, 0],
-                               [sigma[2][0], sigma[2][1], 0, 0, 0, sigma[2][2]]])
-        
-        odom_stamped.pose.covariance = odom_array.flatten().tolist()
+        # Init a 36 elements array
+        odom_stamped.pose.covariance = [0.0] * 36
 
-        odom_stamped.twist.twist.linear.x = mu_v
-        odom_stamped.twist.twist.angular.z = mu_w
+
+        # Fill the 3D covariance matrix
+        odom_stamped.pose.covariance[0] = self.sigma[0][0]
+        odom_stamped.pose.covariance[1] = self.sigma[0][1]
+        odom_stamped.pose.covariance[5] = self.sigma[0][2]
+        odom_stamped.pose.covariance[6] = self.sigma[1][0]
+        odom_stamped.pose.covariance[7] = self.sigma[1][1]
+        odom_stamped.pose.covariance[11] = self.sigma[1][2]
+        odom_stamped.pose.covariance[30] = self.sigma[2][0]
+        odom_stamped.pose.covariance[31] = self.sigma[2][1]
+        odom_stamped.pose.covariance[35] = self.sigma[2][2]
+
+        odom_stamped.twist.twist.linear.x = self.v
+        odom_stamped.twist.twist.angular.z = self.w
         
         return odom_stamped 
+    
+    def send_static_transform(self):
+        static_tf_send = tf2_ros.StaticTransformBroadcaster()
+        static_transform = TransformStamped()
 
-    def update_robot_pose(self, v, w): 
-        self.x = self.x + v * np.cos(self.theta) * self.dt
-        self.y = self.y + v * np.sin(self.theta) * self.dt
-        self.theta = self.theta + w * self.dt
+        static_transform.header.stamp = rospy.Time.now()
+        static_transform.header.frame_id = "world"
+        static_transform.child_frame_id = "odom"
 
-    def prediccion(self):
-        self.k_d = 3.0
-        self.k_t = 2.0
-        self.sigma_k = np.array([[self.k_d * 2.8774e-07, 0],
-                                [0, self.k_t * 7.3658e-09]])
+        static_transform.transform.translation.x = 0.0
+        static_transform.transform.translation.y = 0.0
+        static_transform.transform.translation.z = 0.0
 
-        self.w_sigma = self.w_sigma_const * np.array([
-            [np.cos(self.miu[2]), -np.sin(self.miu[2])],
-            [np.sin(self.miu[2]), np.cos(self.miu[2])],
-            [1 / self.L, -1 / self.L]])
+        static_transform.transform.rotation.x = 0.0
+        static_transform.transform.rotation.y = 0.0
+        static_transform.transform.rotation.z = 0.0
+        static_transform.transform.rotation.w = 1.0
+
+        static_tf_send.sendTransform(static_transform)
+    
+    def send_transform(self, odom):
+        self.tf_send = tf2_ros.TransformBroadcaster()
+        t = TransformStamped()
+        t2 = TransformStamped()
+                    
+        t.header.frame_id = "odom" 
+        t.child_frame_id = "base_link"
+        t.header.stamp = rospy.Time.now() 
+        t.transform.translation.x = self.x
+        t.transform.translation.y = self.y
+        t.transform.translation.z = 0
+
+        t.transform.rotation.x = odom.pose.pose.orientation.x
+        t.transform.rotation.y = odom.pose.pose.orientation.y
+        t.transform.rotation.z = odom.pose.pose.orientation.z
+        t.transform.rotation.w = odom.pose.pose.orientation.w
+
+        self.tf_send.sendTransform(t)  #Send transform
 
 
-        self.Q_k = self.w_sigma.dot(self.sigma_k).dot(self.w_sigma.T)
+    ###################### CALLBACKS ###########################
 
-        self.H = np.array([[1, 0, -self.r * self.dt / 2 * (self.wr + self.wl) * np.sin(self.miu[2])],
-            [0,1, self.r * self.dt / 2 * (self.wr + self.wl) * np.cos(self.miu[2])],
-            [0,0,1]])
+    def wl_cb(self, msg): 
+        self.wl = msg.data
 
-        self.miu = np.array([
-            self.miu[0] + self.r * self.dt / 2 * (self.wr + self.wl) * np.cos(self.miu[2]),
-            self.miu[1] + self.r * self.dt / 2 * (self.wr + self.wl) * np.sin(self.miu[2]),
-            self.miu[2] + self.r * self.dt / self.L * (self.wr - self.wl)
-        ])
 
-        self.z_covariance = self.H.dot(self.z_covariance).dot(self.H.T) + self.Q_k
+    def wr_cb(self, msg): 
+        self.wr = msg.data   
+    
+    def goal_cb(self, msg):
+        self.flag = msg.data
+    
+    def aruco_cb(self, msg):
+        self.id_aruco = msg.data[0]
+        self.d_aruco = msg.data[1]
+        self.theta_aruco = msg.data[2]
+        self.coords_aruco = [self.d_aruco, self.theta_aruco]
+        self.id_arucos(self.id_aruco)
+        self.get_aruco = True
 
-    def correction_step(self):
-        self.delta_x = self.x_aruco - self.miu[0]
-        self.delta_y = self.y_aruco - self.miu[1]
-        self.p = self.delta_x * 2 + self.delta_y * 2
-        self.z = np.array([self.d_aruco,self.theta_aruco])
-        self.z_hat = np.array([np.sqrt(self.p), np.arctan2(self.delta_y, self.delta_x) - self.miu[2]])
-        self.G = np.array([[-(self.delta_x / np.sqrt(self.p)), -(self.delta_y / np.sqrt(self.p)), 0], [(self.delta_y / self.p), -(self.delta_x / self.p), -1]])
-        self.R_k = np.array([[0.01, 0],
-                            [0, 0.02]])
-        self.Z = self.G.dot(self.z_covariance).dot(self.G.T) + self.R_k
-        self.K = self.z_covariance.dot(self.G.T).dot(np.linalg.inv(self.Z))
 
-        self.miu = self.miu + self.K.dot(self.z - self.z_hat)
-        self.z_covariance = (self.I - self.K.dot(self.G)).dot(self.z_covariance)
-        print("pos " + str(self.miu))
-        print("cov " + str(self.z_covariance))
+    def id_arucos(self, id):
+        x_y = {702: [0, 0.80], 701: [0, 1.60], 703: [1.73, 0.80],
+               704: [2.63, 0.39], 705: [2.85, 0], 706: [2.865,2.0],
+               707: [1.77, 1.22]}
+        
+        self.x_aruco = x_y[id][0]
+        self.y_aruco = x_y[id][1]
         
 if __name__ == "__main__": 
     Localisation()
-   

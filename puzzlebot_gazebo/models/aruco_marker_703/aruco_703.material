@@ -1,0 +1,13 @@
+material custom_materials/aruco_marker_custom_material_703
+{
+    technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture aruco-703.png
+            }
+        }
+    }
+}
