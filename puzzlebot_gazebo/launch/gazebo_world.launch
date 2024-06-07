@@ -3,7 +3,7 @@
     <launch>
 
         <!-- Gazebo Parameters -->
-        <arg name="world_name" default="$(find puzzlebot_gazebo)/worlds/obstacle_avoidance_1.world"/>
+        <arg name="world_name" default="$(find puzzlebot_gazebo)/s/obstacle_avoidance_1.world"/>
         <arg name="paused" default="false"/>
         <arg name="use_sim_time" default="true"/>
         <arg name="gui" default="true"/>

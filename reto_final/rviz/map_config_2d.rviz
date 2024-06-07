@@ -34,7 +34,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: Image
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -87,7 +87,11 @@ Visualization Manager:
           Value: true
         motor_right_link:
           Value: true
+        odom:
+          Value: true
         powerbank_link:
+          Value: true
+        rplidar_frame:
           Value: true
         wheel_caster_link:
           Value: true
@@ -103,6 +107,8 @@ Visualization Manager:
       Show Names: true
       Tree:
         base_footprint:
+          {}
+        odom:
           base_link:
             camera_base_link:
               camera_link:
@@ -112,9 +118,10 @@ Visualization Manager:
                 {}
             jetson_link:
               {}
+            laser:
+              {}
             lidar_base_link:
-              laser:
-                {}
+              {}
             motor_left_link:
               {}
             motor_right_link:
@@ -125,6 +132,8 @@ Visualization Manager:
               {}
             wheel_right_link:
               {}
+          rplidar_frame:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -260,7 +269,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
         Value: Arrow
-      Topic: /puzzlebot_1/base_controller/odom
+      Topic: odom
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -358,7 +367,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 8.351723670959473
+      Distance: 5.190550327301025
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -374,9 +383,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.36479651927948
+      Pitch: 1.2897965908050537
       Target Frame: <Fixed Frame>
-      Yaw: 6.228573799133301
+      Yaw: 0.0003884918987751007
     Saved: ~
 Window Geometry:
   Displays:

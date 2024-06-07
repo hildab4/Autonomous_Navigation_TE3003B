@@ -3,18 +3,21 @@
     <!-- Launch simulation with defined arguments-->
     <include file = "$(find puzzlebot_gazebo)/launch/puzzlebot_gazebo.launch"/>
 
-    <include file = "$(find reto_final)/launch/puzzlebot_control.launch"/>
-
     <!-- Launch camera nodes -->
     <node name = "image_republish" pkg = "image_transport" type = "republish" args = "raw in:=/puzzlebot_1/camera/image_raw compressed out:=puzzlebot_1/camera/image"/>
 	<node name="camera_info_publisher" pkg="reto_final" type="yaml_to_camera_info_publisher.py" output="screen"/>
 
     <include file = "$(find reto_final)/launch/aruco_detect.launch"/>
 
+    <remap from="puzzlebot_1/base_controller/odom" to="/topic_que_no_existe" />
+
+    <param name="puzzlebot_1/base_controller/odom_frame_id" value="" />
+    <param name="puzzlebot_1/base_controller/base_frame_id" value="" />
+
     <node name="DetectR" pkg="reto_final" type="aruco_detect.py" output="screen"/>
 
-    <node name="localisation" pkg="reto_final" type="localisation.py" output="screen"/>
+   <!-- <node name="localisation" pkg="reto_final" type="localisation.py" output="screen"/> -->
 
-    <!-- <node name="bug0" pkg="reto_final" type="bug0.py" output="screen"/> -->
+   <!-- <node name="bug0" pkg="reto_final" type="bug0.py" output="screen"/> -->
     <!--<node name = "rqt_image_view" pkg = "rqt_image_view" type = "rqt_image_view"/> -->
 </launch>

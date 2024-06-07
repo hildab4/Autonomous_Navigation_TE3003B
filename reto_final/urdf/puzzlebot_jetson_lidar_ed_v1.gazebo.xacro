@@ -229,7 +229,7 @@
     <gazebo>
         <plugin name="p3d_controller_ground_truth" filename="libgazebo_ros_p3d.so">
             <alwaysOn>$(arg ground_truth)</alwaysOn>
-            <frameName>world</frameName>
+            <frameName>odom</frameName>
             <bodyName>base_link</bodyName>
             <topicName>base_pose_ground_truth</topicName>
             <updateRate>30.0</updateRate>

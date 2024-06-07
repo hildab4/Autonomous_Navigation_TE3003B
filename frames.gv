@@ -1,0 +1,25 @@
+digraph G {
+"puzzlebot_1/base_link" -> "puzzlebot_1/camera_base_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_footprint" -> "puzzlebot_1/base_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/camera_base_link" -> "puzzlebot_1/camera_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/caster_holder_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/jetson_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/lidar_base_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/lidar_base_link" -> "puzzlebot_1/lidar_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/motor_left_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/motor_right_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/powerbank_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/caster_holder_link" -> "puzzlebot_1/wheel_caster_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 172.230 sec old)\nBuffer length: 0.000 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/wheel_left_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 50.526 Hz\nMost recent transform: 172.223 ( 0.007 sec old)\nBuffer length: 1.900 sec\n"];
+"puzzlebot_1/base_link" -> "puzzlebot_1/wheel_right_link"[label="Broadcaster: /puzzlebot_1/puzzlebot_state_pub\nAverage rate: 50.526 Hz\nMost recent transform: 172.223 ( 0.007 sec old)\nBuffer length: 1.900 sec\n"];
+"world" -> "base_link"[label="Broadcaster: /localisation\nAverage rate: 22.162 Hz\nMost recent transform: 172.204 ( 0.026 sec old)\nBuffer length: 1.850 sec\n"];
+"world" -> "odom"[label="Broadcaster: /world_to_odom\nAverage rate: 10.538 Hz\nMost recent transform: 172.273 ( -0.043 sec old)\nBuffer length: 1.803 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 172.230"[ shape=plaintext ] ;
+ }->"puzzlebot_1/base_footprint";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 172.230"[ shape=plaintext ] ;
+ }->"world";
+}

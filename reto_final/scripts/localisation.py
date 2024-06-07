@@ -12,9 +12,6 @@ import tf2_ros
 class Localisation():  
     def __init__(self):
         rospy.init_node('localisation') 
-
-        self.send_static_transform()
-        rospy.loginfo("Static transform sent from 'world' to 'odom'.")
         
         ################# SUBSCRIBERS ####################
         rospy.Subscriber("puzzlebot_1/wl", Float32, self.wl_cb) 
@@ -23,7 +20,7 @@ class Localisation():
         rospy.Subscriber("goal_reached", Bool, self.goal_cb)
 
         ################# PUBLISHERS ######################
-        self.odom_pub = rospy.Publisher('puzzlebot_1/base_controller/odom', Odometry, queue_size=1) 
+        self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=1)
         self.goal_pub = rospy.Publisher('goalmarker', Float32MultiArray, queue_size=1)
 
         ################# ROBOT CONSTANTS #################
@@ -35,10 +32,6 @@ class Localisation():
         self.x = 2.3
         self.y = 1.04
         self.theta = np.pi
-
-        ################ GOAL COORDINATES ################
-        self.kr = 0.0
-        self.kl = 0.0
         
         ################ ARUCO IDENTIFIERS ###############
         self.x_aruco = 0
@@ -53,6 +46,8 @@ class Localisation():
         self.wr = 0.0  
         self.wl = 0.0
         self.flag = False
+
+        self.first = True
 
         ############### EKF VARIABLES ##################
 
@@ -72,28 +67,30 @@ class Localisation():
         self.gradient_W = np.zeros((3,2))
 
         self.Q = np.zeros((3,3))
-        self.R = np.array([[2.8774e-07, 0.0], [0.0, 7.3658e-09]]) #2x2
+        self.R = np.array([[0.02, 0.0], [0.0, 0.004]]) #2x2
         #self.gradient_W = np.zeros((3, 2))
         self.K = np.array((3, 2))
         self.covariance = np.zeros((2,3))
 
         ################# GAINS #################
-        self.kl = 30.0
-        self.kr = 20.0
+        self.kl = 0.3
+        self.kr = 0.2
 
 
         ################ GOALS ###################
         self.goals = [
-            [0.5, 1.55],  # GOAL 1
+            [0.6, 0.5],  # GOAL 1
             [1.38, 1.03], # GOAL 2
             [2.05, 0.35], # GOAL 3
             [2.97, 0.4],  # GOAL 4
-            [0.5, 1.55]   # GOAL 5
+            [0.6, 1.4]   # GOAL 5
         ]
 
         self.current_goal_index = 0
 
         rate = rospy.Rate(int(1.0/self.dt))
+
+        self.goal = Float32MultiArray()
 
         while not rospy.is_shutdown():
 
@@ -101,21 +98,20 @@ class Localisation():
             print("X del robot : " + str(self.x))
             print("Y del robot : " + str(self.y))
             print("Theta del robot : " + str(self.theta))
-            print()
-            msg = Float32MultiArray()
-            msg.data = [0.5, 1.55]
-            self.goal_pub.publish(msg) #Publish first goal
+            print("\n")
+
+            #self.theta = np.arctan2(np.sin(self.theta), np.cos(self.theta))
         
             #Get linear and angular speeds
-            self.v = ((self.wl + self.wr) / 2) * self.r 
+            self.v = ((self.wr + self.wl) / 2) * self.r 
             self.w = ((self.wr - self.wl) / self.L) * self.r
 
             #Calculate the covariance matrix
-            self.covariance = np.array([[self.kl * np.abs(self.wr), 0], 
-                                       [0, self.kr * np.abs(self.wl)]])
+            self.covariance = np.array([[self.kl * abs(self.wr), 0], 
+                                       [0, self.kr * abs(self.wl)]])
 
             #Calculate the jacobian matrix
-            self.gradient_W = 0.5 * self.r * self.dt * np.array([[np.cos(self.theta), np.cos(self.theta)],
+            self.gradient_W = (0.5 * self.r * self.dt) * np.array([[np.cos(self.theta), np.cos(self.theta)],
                                                                   [np.sin(self.theta), np.sin(self.theta)],
                                                                   [2.0 / self.L, -2.0 / self.L]])
             
@@ -133,24 +129,27 @@ class Localisation():
             else:
                 #Propagate backwards miu and covariance for the odometry
                 self.propagate()
-                
+            
             #Update odometry 
             odom_msg = self.get_odom_stamped()
 
             #Publish odometry
-            self.odom_pub.publish(odom_msg) 
-
+            self.odom_pub.publish(odom_msg)
             
             #Send transform from odom frame to base_link frame
             self.send_transform(odom_msg)
 
             #If bug0 returns that it is at the goal, it publishes a flag and we read it here to send the next goal
-            if self.flag == True:
+            if self.first == True:
+                self.goal.data = self.goals[self.current_goal_index]
                 self.current_goal_index += 1
+                self.first = False
+
+            if self.flag == True:
                 if self.current_goal_index >= len(self.goals):
                     rospy.loginfo("!!!!!!!!All goals reached!!!!!!!!!!!")
 
-                rospy.loginfo("Target #" + str(self.current_goal_index) + "at coord: " + str(self.goals[self.current_goal_index]))
+                rospy.loginfo("Target # " + str(self.current_goal_index) + "at coord: " + str(self.goals[self.current_goal_index]))
                 rospy.loginfo("Wait 5 seconds till next point is published")
 
                 start_time = rospy.get_time()
@@ -160,9 +159,12 @@ class Localisation():
                     percentage = (elapsed_time / 5.0) * 100
                     rospy.loginfo("Percentage: {:.2f}%".format(percentage))
                     rospy.sleep(0.1)
-                self.goal_pub.publish(self.goals[self.current_goal_index])
+                    self.goal.data = self.goals[self.current_goal_index]
                 rospy.loginfo("Sending new objective...")
+                self.current_goal_index += 1
+                self.flag = False
 
+            self.goal_pub.publish(self.goal)
             rate.sleep() 
 
     
@@ -171,9 +173,9 @@ class Localisation():
     def prediction(self):
         ############## CALCULATE THE ESTIMATED POSITION ############### 
         self.miu_hat = np.array([
-            [self.x + self.dt * self.v * np.cos(self.theta)], #X    3x3
-            [self.y + self.dt * self.v * np.sin(self.theta)], #Y
-            [self.theta + self.dt * self.w]])        
+            self.x + self.dt * self.v * np.cos(self.theta), #X    3x3
+            self.y + self.dt * self.v * np.sin(self.theta), #Y
+            self.theta + self.dt * self.w])        
         
         ############# CALCULTATE THE LINEARIZED MODEL ################
         
@@ -191,7 +193,7 @@ class Localisation():
         dy = self.y_aruco - self.x
         p = dx **2 + dy **2 #Distance from robot to the aruco
 
-        self.z_hat = np.array([[np.sqrt(p)], [np.arctan2(dy, dx) - self.theta_pred]]) #Observation model of the pose of the robot in respect to the aruco
+        self.z_hat = np.array([np.sqrt(p), np.arctan2(dy, dx) - self.theta_pred]) #Observation model of the pose of the robot in respect to the aruco
 
         self.G = np.array([[-dx/np.sqrt(p), -dy/np.sqrt(p), 0], #Linearize observation model
                       [dy/p, -dx/p, -1]])
@@ -211,7 +213,9 @@ class Localisation():
         self.x = self.miu[0].item()
         self.y = self.miu[1].item()
         self.theta = self.miu[2].item()
+        self.theta = np.arctan2(np.sin(self.theta), np.cos(self.theta))
         self.theta_pred = self.miu_hat[2].item()
+        self.theta_pred = np.arctan2(np.sin(self.theta_pred), np.cos(self.theta_pred))
         self.sigma = self.sigma_hat
 
 
@@ -224,12 +228,16 @@ class Localisation():
         odom_stamped.header.stamp = rospy.Time.now() 
         odom_stamped.pose.pose.position.x = self.x
         odom_stamped.pose.pose.position.y = self.y
+        odom_stamped.pose.pose.position.z = 0.0
 
         quat = quaternion_from_euler(0, 0, self.theta) 
         odom_stamped.pose.pose.orientation.x = quat[0]
         odom_stamped.pose.pose.orientation.y = quat[1]
         odom_stamped.pose.pose.orientation.z = quat[2]
         odom_stamped.pose.pose.orientation.w = quat[3]
+
+        odom_stamped.twist.twist.linear.x = self.v
+        odom_stamped.twist.twist.angular.z = self.w
 
         # Init a 36 elements array
         odom_stamped.pose.covariance = [0.0] * 36
@@ -246,49 +254,29 @@ class Localisation():
         odom_stamped.pose.covariance[31] = self.sigma[2][1]
         odom_stamped.pose.covariance[35] = self.sigma[2][2]
 
-        odom_stamped.twist.twist.linear.x = self.v
-        odom_stamped.twist.twist.angular.z = self.w
         
         return odom_stamped 
     
-    def send_static_transform(self):
-        static_tf_send = tf2_ros.StaticTransformBroadcaster()
-        static_transform = TransformStamped()
-
-        static_transform.header.stamp = rospy.Time.now()
-        static_transform.header.frame_id = "world"
-        static_transform.child_frame_id = "odom"
-
-        static_transform.transform.translation.x = 0.0
-        static_transform.transform.translation.y = 0.0
-        static_transform.transform.translation.z = 0.0
-
-        static_transform.transform.rotation.x = 0.0
-        static_transform.transform.rotation.y = 0.0
-        static_transform.transform.rotation.z = 0.0
-        static_transform.transform.rotation.w = 1.0
-
-        static_tf_send.sendTransform(static_transform)
-    
+  
     def send_transform(self, odom):
         self.tf_send = tf2_ros.TransformBroadcaster()
         t = TransformStamped()
-        t2 = TransformStamped()
                     
         t.header.frame_id = "odom" 
         t.child_frame_id = "base_link"
         t.header.stamp = rospy.Time.now() 
         t.transform.translation.x = self.x
         t.transform.translation.y = self.y
-        t.transform.translation.z = 0
+        t.transform.translation.z = 0.0
 
-        t.transform.rotation.x = odom.pose.pose.orientation.x
-        t.transform.rotation.y = odom.pose.pose.orientation.y
-        t.transform.rotation.z = odom.pose.pose.orientation.z
-        t.transform.rotation.w = odom.pose.pose.orientation.w
+        quat = quaternion_from_euler(0,0,self.theta)
+
+        t.transform.rotation.x = quat[0]
+        t.transform.rotation.y = quat[1]
+        t.transform.rotation.z = quat[2]
+        t.transform.rotation.w = quat[3]
 
         self.tf_send.sendTransform(t)  #Send transform
-
 
     ###################### CALLBACKS ###########################
 

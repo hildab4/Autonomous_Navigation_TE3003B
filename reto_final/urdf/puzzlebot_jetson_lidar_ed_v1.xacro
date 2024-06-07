@@ -274,9 +274,9 @@
         </inertial>
     </link>
 
-    <link name="laser">
+    <link name="laser_link">
         <visual>
-            <origin xyz="${lidar_mesh_pos_x} ${lidar_mesh_pos_y} ${lidar_mesh_pos_z}" rpy="${lidar_mesh_pos_r} ${lidar_mesh_pos_p} ${lidar_mesh_pos_w}"/>
+            <origin xyz="${lidar_mesh_pos_x} ${lidar_mesh_pos_y} ${lidar_mesh_pos_z}" rpy="${lidar_mesh_pos_r} ${lidar_mesh_pos_p} 0"/>
             <geometry>
                 <mesh filename="file://${mesh_puzzlebot_lidar_sensor}"/>
             </geometry>
@@ -304,12 +304,6 @@
         <parent link="base_footprint"/>
         <child link="base_link"/>
         <origin xyz="${chassis_pos_x} ${chassis_pos_y} ${chassis_pos_z}" rpy="${chassis_pos_r} ${chassis_pos_p} ${chassis_pos_w}"/>
-    </joint>
-
-    <joint name="world_to_base_footprint" type="fixed">
-        <parent link="world"/>
-        <child link="base_link"/>
-        <origin xyz="0 0 0" rpy="0 0 0"/>
     </joint>
 
     <joint name="motor_left_joint" type="fixed">
@@ -357,7 +351,7 @@
     <joint name="lidar_joint" type="fixed">
         <parent link="lidar_base_link"/>
         <child link="laser"/>
-        <origin xyz="${lidar_pos_x} ${lidar_pos_y} ${lidar_pos_z}" rpy="${lidar_pos_r} ${lidar_pos_p} 3.141592"/>
+        <origin xyz="${lidar_pos_x} ${lidar_pos_y} ${lidar_pos_z}" rpy="${lidar_pos_r} ${lidar_pos_p} ${lidar_pos_w}"/>
     </joint>
 
     <joint name="wheel_right_joint" type="continuous">

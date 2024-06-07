@@ -26,6 +26,7 @@
             <arg name="use_sim_time" value="$(arg use_sim_time)"/>
             <arg name="headless" value="$(arg headless)"/>
             <arg name="extra_gazebo_args" value="--lockstep"/>
+            <remap from="world" to="odom"/>
         </include>
 
          <!-- Launch Puzzlebot -->
